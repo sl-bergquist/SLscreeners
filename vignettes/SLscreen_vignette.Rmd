@@ -1,0 +1,138 @@
+---
+title: "Super Learner screeners"
+author: "Savannah Bergquist"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Super Learner screeners}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The Super Learner (SL) screener package contains screening wrappers I have found useful in various projects. Primarily they:
+
+- limit the number of variables the screener selects, 
+- pass user-specified variables to `SuperLearner()`.
+
+This package is probably most useful as a source of examples. The super learner package by Eric Polley is very good and very flexible, and I encourage everyone to try out writing their own wrappers and to share them. 
+
+## Lasso 
+
+The lasso screener is designed to limit the number of non-zero coefficients chosen, and ensure that user-specified variables are always passed to `SuperLearner()`. For example, in Rose et al. 2016, we pre-specify that HIV and multiple sclerosis (MS) drugs should always be selected. The number of non-zero coefficients is approximate for two reasons:
+
+1.  If the number of coefficients exceeds the specified number (`pmax` / `nVar`), then a larger value of the regularization paramter, `lambda`, is chosen, which excludes the ties. 
+
+1.  Lasso chooses the non-zero coefficients, and then the screening algorithm adds the user-specified variables to the list passed to `SuperLearner()`. 
+
+See function documentation for details on parameters. 
+
+```c
+screen.glmnet.fix <- function(Y, X, family, alpha = 1, minscreen = 2, 
+          nVar = 10, nfolds = 10, nlambda = 100,fixed.var.index=var.index,...) {
+  if(!is.matrix(X)) {
+    X <- model.matrix(~ -1 + ., X)
+  }
+  fitCV <- glmnet::cv.glmnet(x = X, y = Y, lambda = NULL, type.measure = 'deviance', 
+                             nfolds = nfolds, family = family$family, alpha = alpha, 
+                             nlambda = nlambda, pmax= nVar, parallel=T)
+  whichVariable <- (as.numeric(coef(fitCV$glmnet.fit, s = fitCV$lambda.min))[-1] != 0)
+  # the [-1] removes the intercept; taking the coefs from the fit w/ 
+    # lambda that gives minimum cvm
+  if (sum(whichVariable) < minscreen) {
+    warning("fewer than minscreen variables passed the glmnet screen, 
+            increased lambda to allow minscreen variables")
+    sumCoef <- apply(as.matrix(fitCV$glmnet.fit$beta), 2, function(x) sum((x != 0)))
+    newCut <- which.max(sumCoef >= minscreen) 
+    whichVariable <- (as.matrix(fitCV$glmnet.fit$beta)[, newCut] != 0)
+  }
+  whichVariable[c(var.index)] <- TRUE
+  return(whichVariable)
+}
+```
+
+## Random forest
+
+There are two random forest screening wrappers in this package. They both allow the user to select specific variables to always be passed to `SuperLearner()`, and they allow the user to limit the number of variables to be passed to `SuperLearner()`. The first, `screen.rf.fuzzy`, is faster but not gauranteed to pass the exact number of variables specified by the user to `SueprLearner()`. It operates by performing the same as `screen.randomForest`, selecting the top `nVar` variables, and then adding on the user specified variables if they were not included in the top `nVar` variables. 
+
+```c
+screen.rf.fuzzy <- function (Y, X, family, nVar = 10, ntree = 500, 
+                  mtry = ifelse(family$family=="gaussian", floor(sqrt(ncol(X))),
+                  max(floor(ncol(X)/3), 1)), 
+                  nodesize = ifelse(family$family=="gaussian", 5, 1), ...) {
+  rank.rf.fit <- randomForest::randomForest(Y ~ ., data = X, ntree = ntree, 
+                  mtry = mtry, nodesize = nodesize, keep.forest = FALSE)
+  whichVariable <- (rank(-rank.rf.fit$importance) <= nVar)
+  whichVariable[c(var.index)] <- TRUE
+  return(whichVariable)
+}
+```
+
+The second, `screen.rf.exact`, is slower but gauranteed to pass the exact number of variables specified by the user to `SuperLearner()`. It currently operates by searching the rankings for the user specified ("fixed") variables. If the user specified variables are not included in the top `nVar` variables, then it selects a subset of top `nVar` and fill in the ranks with the user specified variables. For example, if the overall number of variables to select is 10 and 2 of the user specified variables are outside the top 10, it will select the top 8, and convert the 2 fixed variables outside the top 10 to be `TRUE`. 
+
+```c
+
+screen.rf.exact <- function (Y, X, family, nVar = 10, nFix=3, 
+                  fixed.var.index=var.index, ntree = 500, 
+                  mtry = ifelse(family$family=="gaussian", floor(sqrt(ncol(X))),
+                  max(floor(ncol(X)/3), 1)), 
+                  nodesize = ifelse(family$family=="gaussian", 5, 1), ...) 
+{
+  if (family$family == "gaussian") {
+    rank.rf.fit <- randomForest::randomForest(Y ~ ., data = X, ntree = ntree, 
+                  mtry = mtry, nodesize = nodesize, keep.forest = FALSE)
+  }
+  
+  if (family$family == "binomial") {
+    rank.rf.fit <- randomForest::randomForest(as.factor(Y) ~ ., data=X, ntree=ntree, 
+                    mtry = mtry, nodesize = nodesize, keep.forest = FALSE)
+  }
+  ranks <- rank(-rank.rf.fit$importance)
+  varInt <- (rank(-rank.rf.fit$importance) <= (nVar))
+  varInt[c(fixed.var.index)] <- TRUE 
+  var_replace <- function(i){ 
+    if(sum(varInt)==(nVar+i)){ 
+      varFinal <- (rank(-rank.rf.fit$importance) <= (nVar-i))
+      varFinal[c(fixed.var.index)] <- TRUE
+      return(varFinal)
+    }
+  }
+  results <- lapply(seq(0,nFix,1), var_replace) 
+    # applying the function over the specified number of fixed variables
+  whichVariable <- unlist(Filter(Negate(is.null), results)) 
+    # getting rid of the null results and converting from a list to a vector
+  return(whichVariable)       
+}
+```
+
+## User specified subset
+
+Often it is useful to compare algorithms using different subsets of variables. Eric Polley has an example in the super learner vignette that involves subsetting based on variable indices ([slide 66](https://cran.r-project.org/web/packages/SuperLearner/vignettes/SuperLearnerPresent.pdf)). Below is an example of how specify a subset based on a common set of variable names. It removes all variables that begin with "tcls".
+
+```c
+tgrp.fun <- function(X, ...){
+  whichvars <- c(rep.int(TRUE, ncol(X)))
+  names(whichvars) <- colnames(X)
+  tclsvars <- grep("tcls", names(X), value=T)
+  whichvars[tclsvars] <- FALSE 
+  whichvars <- unname(whichvars)
+  return(whichvars) 
+}
+```
+
+## Example: super learner with screening
+
+The library includes neural net and a main terms regression. Each algorithm is run with all variablesa, subset excluding drug therapeutic classes (`trgp.fun`), a subset chosen by lasso that is specified to always include HIV and MS drugs (`screen.glmnet.fix`), and a subset that is chosen by random forest and is also specified to always include HIV and MS drugs (`screen.rf.fuzzy`). (note I probably need to figure out a way to distinguish the var.index specified for eahc algorithm, in the case that you wanted to force different variables through)
+
+```c 
+# always retain classes for HIV (tcls14) and MS (tcls251) drugs
+var.index <- c(which(colnames(newdat)=="tcls14"), which(colnames(newdat)=="tcls251"))
+
+# Super learner library
+library  <- list(c("SL.nnet", "All", "tgrp.fun", "screen.glmnet.fix", "screen.rf.fuzzy"), 
+c("SL.glm", "All", "tgrp.fun", "screen.glmnet.fix", "screen.rf.fuzzy"),
+c("SL.rpart", "All", "tgrp.fun", "screen.glmnet.fix", "screen.rf.fuzzy"))
+
+# run super learner
+fit.data.SL <- SuperLearner(Y=newdat[,1], X=newdat[,-1], 
+SL.library=library, family=gaussian(),method="method.NNLS", verbose=TRUE)
+```

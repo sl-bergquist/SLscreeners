@@ -1,0 +1,15 @@
+Package: SLscreeners
+Title: Screening Wrappers for Super Learner
+Version: 0.0.0.9000
+Authors@R: person("Savannah", "Bergquist", email = "savannah.bergquist@gmail.com", role = c("aut", "cre"))
+Description: This package contains examples of modified screening wrappers for implementing Super Learner. Primarily it focuses on allowing the user to compare various scenarios that may arise from clinical or practical health policy applications (e.g., comparing smaller subsets of variables, always including certain variables, etc.).
+Depends:
+    R (>= 3.2.0)
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 5.0.1
+Suggests: knitr,
+    rmarkdown,
+    SuperLearner
+VignetteBuilder: knitr
