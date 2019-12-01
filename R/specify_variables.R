@@ -1,11 +1,11 @@
-#' Examine only therapeutic groups from Evil Insurers Marketscan sample
+#' Examine only therapeutic groups from Marketscan sample
 #'
 #' This function allows you to screen out the therapeutic class variables when running
 #' \code{SuperLearner()}. It relies on the therapeutic class variables all beginning with
 #' the prefix \code{tcls}. I should probably make this a more general function that allows
 #' the user to specify whatever variable prefix they want.
 #' @param X data frame columns (should be specified when calling \code{SuperLearner()})
-#' @keywords SuperLearner EvilInsurers
+#' @keywords SuperLearner
 #' @export
 #' @examples Cannot think of a good example here -- pretty much the one setting for using it
 #'
@@ -34,7 +34,7 @@ tgrp.fun <- function(X, ...){
 #'
 #' @seealso See \code{\link[glmnet]{glmnet}} for additional details on implementing lasso
 #'
-#' @keywords SuperLearner EvilInsurers
+#' @keywords SuperLearner 
 #' @export
 #' @examples If you do not know the indices of the variables you always want to include,
 #'   you can get them from the variable name, where newdat is the dataframe:
@@ -89,7 +89,7 @@ screen.glmnet.fix <- function(Y, X, family, alpha = 1, minscreen = 2, nVar = 10,
 #' @param Y outcome variable (specified in \code{SuperLearner()})
 #' @param var.index indices of variables to always be included by the screener
 #' @param nVar number of variables for the screener to select
-#' @keywords SuperLearner EvilInsurers
+#' @keywords SuperLearner 
 #' @export
 #' @examples If you do not know the indices of the variables you always want to include,
 #'  you can get them from the variable name, where newdat is the dataframe name:
@@ -130,7 +130,7 @@ screen.rf.fuzzy <- function (Y, X, family, nVar = 10, ntree = 500, mtry = ifelse
 #' @param var.index indices of variables to always be included by the screener
 #' @param nVar number of variables for the screener to select
 #' @param nFix number of individual variables that are alaways passed to SuperLearner()
-#' @keywords SuperLearner EvilInsurers
+#' @keywords SuperLearner 
 #' @export
 #' @examples If you do not know the indices of the variables you always want to include,
 #'  you can get them from the variable name, where newdat is the dataframe name:
