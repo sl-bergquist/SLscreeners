@@ -7,7 +7,7 @@
 #' @param X data frame columns (should be specified when calling \code{SuperLearner()})
 #' @keywords SuperLearner
 #' @export
-#' @examples Cannot think of a good example here -- pretty much the one setting for using it
+#' @examples 
 #'
 
 tgrp.fun <- function(X, ...){
